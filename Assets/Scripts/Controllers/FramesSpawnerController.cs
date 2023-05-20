@@ -5,7 +5,10 @@ using UnityEngine;
 public class FramesSpawnerController : MonoBehaviour
 {
     [SerializeField] private int index = 8;
+    [RangeExtension(0.25f, 2f, 0.25f)]
+    [SerializeField] private float animationSpeed = 0.25f;
     private List<GameObject> spawnedFrames = new List<GameObject>();
+    private bool enableCommands = true;
 
     [field: Header("Voxel Generation Settings")]
     [RangeExtension(0.5f, 5f, 0.5f)]
@@ -17,32 +20,64 @@ public class FramesSpawnerController : MonoBehaviour
     
 
     // Start is called before the first frame update
-    void Start()
+    void Awake()
     {
+        float startTime = Time.time;
         SpawnFrames();
         index = Mathf.Clamp(index, 0, spawnedFrames.Count - 1);
         ActivateSelectedFrame(index);
+        Debug.Log($"Elapsed time: {Time.time - startTime}");
+
+    }
+
+    private IEnumerator ExecuteAnimation(int initialIndex, float animationSpeed)
+    {
+        DeActiveFrame(initialIndex);
+        float startTime = Time.time;
+        float initialFrameTime = Time.time;
+        for (int localIndex = 0; localIndex < spawnedFrames.Count; localIndex++)
+        {
+            
+            ActivateSelectedFrame(localIndex);
+            yield return new WaitForSeconds(1f /animationSpeed / spawnedFrames.Count - (Time.time - initialFrameTime)); 
+            initialFrameTime = Time.time;
+            DeActiveFrame(localIndex);
+        }
+        Debug.Log($"Elapsed time for the animation: {Time.time - startTime}");
+        ActivateSelectedFrame(spawnedFrames.Count - 1);
+        yield return new WaitForSeconds(0.25f);
+        DeActiveFrame(spawnedFrames.Count - 1);
+        enableCommands = true;
+        ActivateSelectedFrame(initialIndex);
 
     }
 
     // Update is called once per frame
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.D))
+        if (enableCommands)
         {
-            DeActiveFrame(index);
-            index++;
-            index = Mathf.Clamp(index, 0, spawnedFrames.Count - 1);
-            Debug.Log($"Frame: {index + 1}");
-            ActivateSelectedFrame(index);
-        }
-        if (Input.GetKeyDown(KeyCode.A))
-        {
-            DeActiveFrame(index);
-            index--;
-            index = Mathf.Clamp(index, 0, spawnedFrames.Count - 1);
-            Debug.Log($"Frame: {index + 1}");
-            ActivateSelectedFrame(index);
+            if (Input.GetKeyDown(KeyCode.X))
+            {
+                StartCoroutine(ExecuteAnimation(index, animationSpeed));
+                enableCommands = false;
+            }
+            if (Input.GetKeyDown(KeyCode.D))
+            {
+                DeActiveFrame(index);
+                index++;
+                index = Mathf.Clamp(index, 0, spawnedFrames.Count - 1);
+                Debug.Log($"Frame: {index + 1}");
+                ActivateSelectedFrame(index);
+            }
+            if (Input.GetKeyDown(KeyCode.A))
+            {
+                DeActiveFrame(index);
+                index--;
+                index = Mathf.Clamp(index, 0, spawnedFrames.Count - 1);
+                Debug.Log($"Frame: {index + 1}");
+                ActivateSelectedFrame(index);
+            }
         }
 
     }
