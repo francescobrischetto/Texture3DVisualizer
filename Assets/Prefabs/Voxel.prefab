@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 6322538792869058629}
   - component: {fileID: 6275105334506386275}
   m_Layer: 0
-  m_Name: Cube
+  m_Name: Voxel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
