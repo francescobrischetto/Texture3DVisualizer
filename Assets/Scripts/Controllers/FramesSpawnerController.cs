@@ -1,7 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using UnityEngine;
-
+using Debug = UnityEngine.Debug;
 public class FramesSpawnerController : MonoBehaviour
 {
     [SerializeField] private int index = 8;
@@ -84,7 +85,8 @@ public class FramesSpawnerController : MonoBehaviour
 
     void SpawnFrames()
     {
-        foreach(Texture3D texture in textures)
+        var sw = Stopwatch.StartNew();
+        foreach (Texture3D texture in textures)
         {
             GameObject spawnedFrame = GameObject.Instantiate(framePrefab, transform.position, Quaternion.identity, transform);
             FrameController spawnedFrameController = spawnedFrame.GetComponent<FrameController>();
@@ -95,6 +97,8 @@ public class FramesSpawnerController : MonoBehaviour
             spawnedFrames.Add(spawnedFrame);
             spawnedFrame.SetActive(false);
         }
+        var dur = sw.ElapsedMilliseconds;
+        Debug.Log($"TOTAL SPAWNING Took {dur / 1000.0:F2}sec");
     }
 
     void ActivateSelectedFrame(int indexToActive)
