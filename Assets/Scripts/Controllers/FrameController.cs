@@ -395,7 +395,7 @@ public class FrameController: MonoBehaviour
         //newMesh.RecalculateNormals(); // faster to do normal xform in the job*/
 
         GetComponent<MeshFilter>().sharedMesh = newMesh;
-        GetComponent<MeshRenderer>().material = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/TransparentMaterial.mat");
+        GetComponent<MeshRenderer>().material = new Material(Shader.Find("Diffuse"));
         //Selection.activeObject = newGo;
         transform.Clear();
         var dur = sw.ElapsedMilliseconds;
