@@ -6,20 +6,20 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using UnityEditor;
-using System.Diagnostics;
-using UnityEngine.AI;
 
 public class FrameController: MonoBehaviour
 {
     [SerializeField] GameObject voxelPrefab;
 
-    public void GeneratedVoxels(Texture3D texture, float size, float threshold)
+    public void GeneratedVoxels(Texture3D texture, float size, float threshold, int selectedMethod)
     {
         SpawnVoxelsFromTex3D(texture, size, threshold);
+        switch (selectedMethod)
+        {
+            case 0: MergeChildsIntoSingleObjectMIXED(); break;
+            case 1: CreateMesh_MeshDataApi(); break;
+        }
         //MergeChildsIntoSingleObject();
-        //CreateMesh_MeshDataApi();
-        MergeChildsIntoSingleObjectMIXED();
     }
 
 
@@ -37,7 +37,6 @@ public class FrameController: MonoBehaviour
 
     private void SpawnVoxelsFromTex3D(Texture3D texture, float size, float threshold)
     {
-        var sw = Stopwatch.StartNew();
         Color[] colors = texture.GetPixels();
         for (int z = 0; z < texture.width; z++)
         {
@@ -60,13 +59,10 @@ public class FrameController: MonoBehaviour
                 }
             }
         }
-        var dur = sw.ElapsedMilliseconds;
-        UnityEngine.Debug.Log($"Spawn Took {dur / 1000.0:F2}sec");
     }
 
     public void MergeChildsIntoSingleObject()
     {
-        var sw = Stopwatch.StartNew();
         // All our children (and us)
         MeshFilter[] filters = GetComponentsInChildren<MeshFilter>(false);
 
@@ -156,14 +152,11 @@ public class FrameController: MonoBehaviour
         GetComponent<MeshFilter>().sharedMesh = finalMesh;
 
         transform.Clear();
-        var dur = sw.ElapsedMilliseconds;
-        UnityEngine.Debug.Log($"Merging OLD Took {dur / 1000.0:F2}sec");
     }
 
 
     public void MergeChildsIntoSingleObjectMIXED()
     {
-        var sw = Stopwatch.StartNew();
         // All our children (and us)
         MeshFilter[] filters = GetComponentsInChildren<MeshFilter>(false);
 
@@ -223,8 +216,6 @@ public class FrameController: MonoBehaviour
         GetComponent<MeshFilter>().sharedMesh = finalMesh;
 
         transform.Clear();
-        var dur = sw.ElapsedMilliseconds;
-        UnityEngine.Debug.Log($"Merging MIXED Took {dur / 1000.0:F2}sec");
     }
 
 
@@ -305,7 +296,6 @@ public class FrameController: MonoBehaviour
 
     public void CreateMesh_MeshDataApi()
     {
-        var sw = Stopwatch.StartNew();
         // Find all MeshFilter objects in the scene
         var meshFilters = GetComponentsInChildren<MeshFilter>();
 
@@ -398,8 +388,6 @@ public class FrameController: MonoBehaviour
         GetComponent<MeshRenderer>().material = new Material(Shader.Find("Diffuse"));
         //Selection.activeObject = newGo;
         transform.Clear();
-        var dur = sw.ElapsedMilliseconds;
-        UnityEngine.Debug.Log($"Merging NEW Took {dur / 1000.0:F2}sec for {meshCount} objects, total {vertexStart} verts");
     }
 
     [BurstCompile]
