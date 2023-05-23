@@ -1,11 +1,12 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using Unity.VisualScripting;
 using UnityEngine;
 
+/// <summary>
+/// This class is responsible of mantaining all the settings data created in the menu scene, passing them to the application scene
+/// </summary>
 public class SettingsData : MonoBehaviour
 {
     private string absolutePath = "";
@@ -16,6 +17,7 @@ public class SettingsData : MonoBehaviour
      
     private void Awake()
     {
+        //The path from which the raw files are imported varies if we are in unity_editor or in build
         #if UNITY_EDITOR
             absolutePath = Application.dataPath;
         #else
@@ -32,6 +34,8 @@ public class SettingsData : MonoBehaviour
     {
         SelectedMethod = num;
     }
+
+    //This is the same function as the custom importer, but reads alla raw files from a folder and populates a List of Texture3D
     public void LoadTextures()
     {
         string rawFilesFullPath = absolutePath + rawFolder;
@@ -63,7 +67,6 @@ public class SettingsData : MonoBehaviour
                         for (int x = 0; x < size; x++)
                         {
                             float v = (float)reader.ReadByte() / 0xFF;
-                            //v = (float) Math.Round(v, 3);
                             colors[x + yOffset + zOffset] = new Color(v, v, v, 1.0f);
                             count++;
                         }
@@ -75,6 +78,8 @@ public class SettingsData : MonoBehaviour
 
             // Apply the changes to the texture and upload the updated texture to the GPU
             texture.Apply();
+
+            //Adding the created texture to the array
             LoadedTextures.Add(texture);
         }
     }

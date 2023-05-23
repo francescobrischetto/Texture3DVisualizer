@@ -2,6 +2,9 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// This script controls the number displayed on top of the slider element
+/// </summary>
 public class SliderNumberDisplay : MonoBehaviour
 {
     [SerializeField] TMP_Text number;

@@ -7,10 +7,10 @@ using UnityEditor.SceneManagement;
 public class RunGame : Editor
 {
     /// <summary>
-    /// This function starts the game from the starting scene (saving the scene if necessary)
+    /// This function starts the application from the starting scene (saving the scene if necessary)
     /// </summary>
-    [MenuItem("Game/Run Game")]
-    static void StartGame()
+    [MenuItem("Application/Run")]
+    static void RunApplication()
     {
         if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
         {

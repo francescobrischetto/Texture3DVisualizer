@@ -2,6 +2,9 @@ using UnityEngine;
 using UnityEditor;
 using System;
 
+/// <summary>
+/// This class allows to show range with steps onGUI in Unity Editor
+/// </summary>
 [CustomPropertyDrawer(typeof(RangeExtensionAttribute))]
 internal sealed class RangeExDrawer : PropertyDrawer
 {

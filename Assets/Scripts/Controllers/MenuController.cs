@@ -1,6 +1,9 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>
+/// This class is responsible of controlling the UI of the Main Menu and his workflow
+/// </summary>
 public class MenuController : MonoBehaviour
 {
     [SerializeField] GameObject MainPanel;
@@ -16,16 +19,19 @@ public class MenuController : MonoBehaviour
         SettingsPanel.SetActive(false);
         CreditsPanel.SetActive(false);
         LoadingPanel.SetActive(false);
+        //We need to check if we are going back to the menu -> In this case we destroy the previous settings
         SettingsData previousInstance = FindObjectOfType<SettingsData>();
         if (previousInstance != null)
         {
             Destroy(previousInstance.transform.gameObject);
         }
+        //We create the settings and flag them as "DontDestroyOnLoad" to pass through the MainScene
         GameObject instantiatedSettingsObject = Instantiate(SettingsDataObj, Vector3.zero, Quaternion.identity);
         currentSettings = instantiatedSettingsObject.GetComponent<SettingsData>();
         DontDestroyOnLoad(instantiatedSettingsObject);
     }
 
+    //Functions that toggles the various panels
     public void ToggleSettings()
     {
         MainPanel.SetActive(SettingsPanel.activeSelf);
@@ -61,7 +67,8 @@ public class MenuController : MonoBehaviour
         SceneManager.LoadScene("MainScene");
 
     }
-
+    
+    //The settings updated in the UI must be reflected to the settings object
     public void thresholdUpdated(float num)
     {
         currentSettings.thresholdUpdated(num);

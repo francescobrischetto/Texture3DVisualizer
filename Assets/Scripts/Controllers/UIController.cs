@@ -4,9 +4,13 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
+/// <summary>
+/// This class is responsible of updating the application UI properly to react to player input
+/// </summary>
 public class UIController : MonoBehaviour
 {
     [SerializeField] Button PlayButton;
@@ -19,11 +23,12 @@ public class UIController : MonoBehaviour
     [SerializeField] TMP_Text CurrentFramesText;
     [SerializeField] TMP_Text LoadedTimeText;
 
+    //Those unityEvents allows to react to player buttons press or dropdown changes
     public UnityEvent onPlayButton;
     public UnityEvent<bool> onFrameManagementButtons;
     public UnityEvent<int> onSpeedDropdownChanged;
-
     public static UIController Instance { get; private set; }
+
     private void Awake()
     {
         //Singleton Setup
@@ -35,6 +40,7 @@ public class UIController : MonoBehaviour
         {
             Instance = this;
         }
+        //Observer Setup
         PlayButton.onClick.AddListener(ReactToPlayButton);
         PrevFrameButton.onClick.AddListener(ReactPrevFrameButton);
         NextFrameButton.onClick.AddListener(ReactNextFrameButton);
@@ -42,27 +48,30 @@ public class UIController : MonoBehaviour
         SpeedDropdown.onValueChanged.AddListener(ReactToSpeedDropdown);
     }
 
-    public void PlayIndexChanged(int newIndex)
-    {
-        PlaySlider.value = newIndex + 1;
-        CurrentFramesText.text = (newIndex + 1).ToString();
-    }
-
     private void ReactToSpeedDropdown(int value)
     {
         onSpeedDropdownChanged.Invoke(value);
     }
+
     private void ReactToPlayButton()
     {
         onPlayButton.Invoke();
     }
+
     private void ReactPrevFrameButton()
     {
         onFrameManagementButtons.Invoke(false);
     }
+
     private void ReactNextFrameButton()
     {
         onFrameManagementButtons.Invoke(true);
+    }
+
+    public void PlayIndexChanged(int newIndex)
+    {
+        PlaySlider.value = newIndex + 1;
+        CurrentFramesText.text = (newIndex + 1).ToString();
     }
 
     public void ToMainMenuScene()

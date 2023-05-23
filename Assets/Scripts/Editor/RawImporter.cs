@@ -1,8 +1,9 @@
 using UnityEngine;
 using UnityEditor.AssetImporters;
-using System.IO;
-using System.Collections.Specialized;
 
+/// <summary>
+/// This custom imported allows to import raw files as 32x32x32 Texture3D 
+/// </summary>
 [ScriptedImporter(1, "raw")]
 public class RawImporter : ScriptedImporter
 {
@@ -33,7 +34,6 @@ public class RawImporter : ScriptedImporter
                     for (int x = 0; x < size; x++)
                     {
                         float v = (float)reader.ReadByte() / 0xFF;
-                        //v = (float) Math.Round(v, 3);
                         colors[x + yOffset + zOffset] = new Color(v, v, v, 1.0f);
                         count++;
                     }
@@ -46,7 +46,7 @@ public class RawImporter : ScriptedImporter
         // Apply the changes to the texture and upload the updated texture to the GPU
         texture.Apply();
 
-        // Assets must be assigned a unique identifier string consistent across imports
+        // Assets must be assigned with a unique identifier string
         ctx.AddObjectToAsset("my 3D Texture", texture);
     }
 }

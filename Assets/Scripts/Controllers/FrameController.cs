@@ -7,22 +7,26 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 
+/// <summary>
+/// This class generates the Voxel Mesh from the Texture3D. It also has different merging methods for the cubes composing the mesh
+/// </summary>
 public class FrameController: MonoBehaviour
 {
     [SerializeField] GameObject voxelPrefab;
 
     public void GeneratedVoxels(Texture3D texture, float size, float threshold, int selectedMethod)
     {
+        //Spawns all the voxels
         SpawnVoxelsFromTex3D(texture, size, threshold);
+        //Merges all the voxels into one single mesh to be optimized (the heavy process)
         switch (selectedMethod)
         {
-            case 0: MergeChildsIntoSingleObjectMIXED(); break;
-            case 1: CreateMesh_MeshDataApi(); break;
+            case 0: MergeChildsIntoSingleObjectMixedApproach(); break;
+            case 1: MergeChildsIntoSingleObjectUnityJobs(); break;
         }
-        //MergeChildsIntoSingleObject();
     }
 
-
+    //This function instantiate all the materials in input in the parent gameObject
     private void CreateMaterialsInParent(List<Material> materials)
     {
         MeshRenderer mr = GetComponent<MeshRenderer>();
@@ -35,6 +39,7 @@ public class FrameController: MonoBehaviour
         mr.materials = materialsArray;
     }
 
+    //This function spawns voxels prefab reading the 3D texture
     private void SpawnVoxelsFromTex3D(Texture3D texture, float size, float threshold)
     {
         Color[] colors = texture.GetPixels();
@@ -61,14 +66,13 @@ public class FrameController: MonoBehaviour
         }
     }
 
-    public void MergeChildsIntoSingleObject()
+    //This was the very first "naive" approach to merge all the children considering also their material using CombineMeshes -> Really slow approach
+    private void MergeChildsIntoSingleObjectNaive()
     {
-        // All our children (and us)
         MeshFilter[] filters = GetComponentsInChildren<MeshFilter>(false);
-
-        // All the meshes in our children (just a big list)
         List<Material> materials = new List<Material>();
-        MeshRenderer[] renderers = GetComponentsInChildren<MeshRenderer>(false); // <-- you can optimize this
+        MeshRenderer[] renderers = GetComponentsInChildren<MeshRenderer>(false);
+        //Search for all the materials in our children
         foreach (MeshRenderer renderer in renderers)
         {
             if (renderer.transform == transform)
@@ -93,9 +97,10 @@ public class FrameController: MonoBehaviour
                 
         }
 
+        //Create the materials in parent
         CreateMaterialsInParent(materials);
         
-        // Each material will have a mesh for it.
+        // Each material will have a SubMesh for it.
         List<Mesh> submeshes = new List<Mesh>();
         foreach (Material material in materials)
         {
@@ -105,7 +110,7 @@ public class FrameController: MonoBehaviour
             {
                 if (filter.transform == transform) continue;
                 // The filter doesn't know what materials are involved, get the renderer.
-                MeshRenderer renderer = filter.GetComponent<MeshRenderer>();  // <-- (Easy optimization is possible here, give it a try!)
+                MeshRenderer renderer = filter.GetComponent<MeshRenderer>();
                 if (renderer == null)
                 {
                     UnityEngine.Debug.LogError(filter.name + " has no MeshRenderer");
@@ -121,8 +126,8 @@ public class FrameController: MonoBehaviour
                     // This submesh is the material we're looking for right now.
                     CombineInstance ci = new CombineInstance();
                     ci.mesh = filter.sharedMesh;
+                    //assigning the right material Index to the submesh
                     ci.subMeshIndex = materialIndex;
-                    //ci.transform = Matrix4x4.identity;
                     ci.transform = filter.transform.localToWorldMatrix;
                     combiners.Add(ci);
                 }
@@ -131,8 +136,7 @@ public class FrameController: MonoBehaviour
             Mesh mesh = new Mesh();
             mesh.CombineMeshes(combiners.ToArray(), true);
             submeshes.Add(mesh);
-        }
-        
+        }      
 
         // The final mesh: combine all the material-specific meshes as independent submeshes.
         List <CombineInstance> finalCombiners = new List<CombineInstance>();
@@ -151,19 +155,103 @@ public class FrameController: MonoBehaviour
         finalMesh.CombineMeshes(finalCombiners.ToArray(), false);
         GetComponent<MeshFilter>().sharedMesh = finalMesh;
 
+        //Clearing all the children
         transform.Clear();
     }
 
-
-    public void MergeChildsIntoSingleObjectMIXED()
+    //This approach merge all the children not considering their Material using Unity Job system -> the fastest
+    //Example from Unity Technology: https://github.com/Unity-Technologies/MeshApiExamples/blob/master/Assets/CreateMeshFromAllSceneMeshes/CreateMeshFromWholeScene.cs
+    private void MergeChildsIntoSingleObjectUnityJobs()
     {
-        // All our children (and us)
-        MeshFilter[] filters = GetComponentsInChildren<MeshFilter>(false);
+        // Find all MeshFilter objects in the scene
+        var meshFilters = GetComponentsInChildren<MeshFilter>();
 
-        // All the meshes in our children (just a big list)
+        // Need to figure out how large the output mesh needs to be (in terms of vertex/index count),
+        // as well as get transforms and vertex/index location offsets for each mesh.
+        var jobs = new ProcessMeshDataJob();
+        jobs.CreateInputArrays(meshFilters.Length);
+        var inputMeshes = new List<Mesh>(meshFilters.Length);
+
+        var vertexStart = 0;
+        var indexStart = 0;
+        var meshCount = 0;
+        for (var i = 0; i < meshFilters.Length; ++i)
+        {
+            var mf = meshFilters[i];
+            var go = mf.gameObject;
+            if (mf.sharedMesh == null)
+            {
+                continue;
+            }
+
+            var mesh = mf.sharedMesh;
+            inputMeshes.Add(mesh);
+            jobs.vertexStart[meshCount] = vertexStart;
+            jobs.indexStart[meshCount] = indexStart;
+            jobs.xform[meshCount] = go.transform.localToWorldMatrix;
+            vertexStart += mesh.vertexCount;
+            indexStart += (int)mesh.GetIndexCount(0);
+            jobs.bounds[meshCount] = new float3x2(new float3(Mathf.Infinity), new float3(Mathf.NegativeInfinity));
+            ++meshCount;
+        }
+
+        // Acquire read-only data for input meshes
+        jobs.meshData = Mesh.AcquireReadOnlyMeshData(inputMeshes);
+
+        // Create and initialize writable data for the output mesh
+        var outputMeshData = Mesh.AllocateWritableMeshData(1);
+        jobs.outputMesh = outputMeshData[0];
+        jobs.outputMesh.SetIndexBufferParams(indexStart, IndexFormat.UInt32);
+        jobs.outputMesh.SetVertexBufferParams(vertexStart,
+            new VertexAttributeDescriptor(VertexAttribute.Position),
+            new VertexAttributeDescriptor(VertexAttribute.Normal, stream: 1));
+
+        // Launch mesh processing jobs
+        var handle = jobs.Schedule(meshCount, 4);
+
+        // Create destination Mesh object
+        var newMesh = new Mesh();
+        newMesh.name = "CombinedMesh";
+        var sm = new SubMeshDescriptor(0, indexStart, MeshTopology.Triangles);
+        sm.firstVertex = 0;
+        sm.vertexCount = vertexStart;
+
+        // Wait for jobs to finish, since we'll have to access the produced mesh/bounds data at this point
+        handle.Complete();
+
+        // Final bounding box of the whole mesh is union of the bounds of individual transformed meshes
+        var bounds = new float3x2(new float3(Mathf.Infinity), new float3(Mathf.NegativeInfinity));
+        for (var i = 0; i < meshCount; ++i)
+        {
+            var b = jobs.bounds[i];
+            bounds.c0 = math.min(bounds.c0, b.c0);
+            bounds.c1 = math.max(bounds.c1, b.c1);
+        }
+        sm.bounds = new Bounds((bounds.c0 + bounds.c1) * 0.5f, bounds.c1 - bounds.c0);
+        jobs.outputMesh.subMeshCount = 1;
+        jobs.outputMesh.SetSubMesh(0, sm, MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices | MeshUpdateFlags.DontNotifyMeshUsers);
+        Mesh.ApplyAndDisposeWritableMeshData(outputMeshData, new[] { newMesh }, MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices | MeshUpdateFlags.DontNotifyMeshUsers);
+        newMesh.bounds = sm.bounds;
+
+        // Dispose of the read-only mesh data and temporary bounds array
+        jobs.meshData.Dispose();
+        jobs.bounds.Dispose();
+
+        GetComponent<MeshFilter>().sharedMesh = newMesh;
+        GetComponent<MeshRenderer>().material = new Material(Shader.Find("Diffuse"));
+        
+        //Clearing all the children
+        transform.Clear();
+    }
+
+    //This is an hybrid approach. All submeshes are merged with Unity Job System (considering their material), but at the end we use CombineMeshes
+    //to keep the submesh separated in the final mesh
+    private void MergeChildsIntoSingleObjectMixedApproach()
+    {
+        MeshFilter[] filters = GetComponentsInChildren<MeshFilter>(false);
         List<Material> materials = new List<Material>();
         List<List<MeshFilter>> splittedSubmeshes = new List<List<MeshFilter>>();
-        MeshRenderer[] renderers = GetComponentsInChildren<MeshRenderer>(false); // <-- you can optimize this
+        MeshRenderer[] renderers = GetComponentsInChildren<MeshRenderer>(false);
         for (int j=0; j<renderers.Length; j++)
         {
             if (renderers[j].transform == transform)
@@ -183,6 +271,7 @@ public class FrameController: MonoBehaviour
                 }
                 if (!foundMat)
                 {
+                    //We subdivide the mesh and their materials in groups
                     materials.Add(localMat);
                     splittedSubmeshes.Add(new List<MeshFilter>());
                     splittedSubmeshes[splittedSubmeshes.Count - 1].Add(filters[j]);
@@ -192,10 +281,11 @@ public class FrameController: MonoBehaviour
 
         }
 
+        //We create all the necessary materials in parent
         CreateMaterialsInParent(materials);
 
-
-        List<Mesh> submeshes = CreateMesh_MeshDataApi_Submeshes(splittedSubmeshes);
+        //We merge all the objects with the same material into one mesh that will form one submesh of the final mesh
+        List<Mesh> submeshes = MergeSubmeshesUnityJobs(splittedSubmeshes);
 
         // The final mesh: combine all the material-specific meshes as independent submeshes.
         List<CombineInstance> finalCombiners = new List<CombineInstance>();
@@ -215,13 +305,12 @@ public class FrameController: MonoBehaviour
         finalMesh.CombineMeshes(finalCombiners.ToArray(), false);
         GetComponent<MeshFilter>().sharedMesh = finalMesh;
 
+        //Clearing all the children
         transform.Clear();
     }
 
-
-
-
-    public List<Mesh> CreateMesh_MeshDataApi_Submeshes(List<List<MeshFilter>> splittedSubmeshes)
+    //This function creates a List of Mesh merging all the objects in specific submeshes using Unity Job System
+    public List<Mesh> MergeSubmeshesUnityJobs(List<List<MeshFilter>> splittedSubmeshes)
     {
         List<Mesh> result = new List<Mesh>();
         ProcessMeshDataJob[] allJobs = new ProcessMeshDataJob[splittedSubmeshes.Count];
@@ -294,102 +383,9 @@ public class FrameController: MonoBehaviour
         return result;
     }
 
-    public void CreateMesh_MeshDataApi()
-    {
-        // Find all MeshFilter objects in the scene
-        var meshFilters = GetComponentsInChildren<MeshFilter>();
-
-
-        // Need to figure out how large the output mesh needs to be (in terms of vertex/index count),
-        // as well as get transforms and vertex/index location offsets for each mesh.
-        var jobs = new ProcessMeshDataJob();
-        jobs.CreateInputArrays(meshFilters.Length);
-        var inputMeshes = new List<Mesh>(meshFilters.Length);
-
-        var vertexStart = 0;
-        var indexStart = 0;
-        var meshCount = 0;
-        for (var i = 0; i < meshFilters.Length; ++i)
-        {
-            var mf = meshFilters[i];
-            var go = mf.gameObject;
-            /*if (go.name == kCombinedMeshName)
-            {
-                DestroyImmediate(go);
-                continue;
-            }*/
-            if(mf.sharedMesh == null)
-            {
-                continue;
-            }
-
-            var mesh = mf.sharedMesh;
-            inputMeshes.Add(mesh);
-            jobs.vertexStart[meshCount] = vertexStart;
-            jobs.indexStart[meshCount] = indexStart;
-            jobs.xform[meshCount] = go.transform.localToWorldMatrix;
-            vertexStart += mesh.vertexCount;
-            indexStart += (int)mesh.GetIndexCount(0);
-            jobs.bounds[meshCount] = new float3x2(new float3(Mathf.Infinity), new float3(Mathf.NegativeInfinity));
-            ++meshCount;
-        }
-
-        // Acquire read-only data for input meshes
-        jobs.meshData = Mesh.AcquireReadOnlyMeshData(inputMeshes);
-
-        // Create and initialize writable data for the output mesh
-        var outputMeshData = Mesh.AllocateWritableMeshData(1);
-        jobs.outputMesh = outputMeshData[0];
-        jobs.outputMesh.SetIndexBufferParams(indexStart, IndexFormat.UInt32);
-        jobs.outputMesh.SetVertexBufferParams(vertexStart,
-            new VertexAttributeDescriptor(VertexAttribute.Position),
-            new VertexAttributeDescriptor(VertexAttribute.Normal, stream: 1));
-
-        // Launch mesh processing jobs
-        var handle = jobs.Schedule(meshCount, 4);
-
-        // Create destination Mesh object
-        var newMesh = new Mesh();
-        newMesh.name = "CombinedMesh";
-        var sm = new SubMeshDescriptor(0, indexStart, MeshTopology.Triangles);
-        sm.firstVertex = 0;
-        sm.vertexCount = vertexStart;
-
-        // Wait for jobs to finish, since we'll have to access the produced mesh/bounds data at this point
-        handle.Complete();
-
-        // Final bounding box of the whole mesh is union of the bounds of individual transformed meshes
-        var bounds = new float3x2(new float3(Mathf.Infinity), new float3(Mathf.NegativeInfinity));
-        for (var i = 0; i < meshCount; ++i)
-        {
-            var b = jobs.bounds[i];
-            bounds.c0 = math.min(bounds.c0, b.c0);
-            bounds.c1 = math.max(bounds.c1, b.c1);
-        }
-        sm.bounds = new Bounds((bounds.c0 + bounds.c1) * 0.5f, bounds.c1 - bounds.c0);
-        jobs.outputMesh.subMeshCount = 1;
-        jobs.outputMesh.SetSubMesh(0, sm, MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices | MeshUpdateFlags.DontNotifyMeshUsers);
-        Mesh.ApplyAndDisposeWritableMeshData(outputMeshData, new[] { newMesh }, MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices | MeshUpdateFlags.DontNotifyMeshUsers);
-        newMesh.bounds = sm.bounds;
-
-        // Dispose of the read-only mesh data and temporary bounds array
-        jobs.meshData.Dispose();
-        jobs.bounds.Dispose();
-
-        // Create new GameObject with the new mesh
-        /*var newGo = new GameObject("Test", typeof(MeshFilter), typeof(MeshRenderer));
-        var newMf = newGo.GetComponent<MeshFilter>();
-        var newMr = newGo.GetComponent<MeshRenderer>();
-        //newMr.material = AssetDatabase.LoadAssetAtPath<Material>("Assets/CreateMeshFromAllSceneMeshes/MaterialForNewlyCreatedMesh.mat");
-        newMf.sharedMesh = newMesh;
-        //newMesh.RecalculateNormals(); // faster to do normal xform in the job*/
-
-        GetComponent<MeshFilter>().sharedMesh = newMesh;
-        GetComponent<MeshRenderer>().material = new Material(Shader.Find("Diffuse"));
-        //Selection.activeObject = newGo;
-        transform.Clear();
-    }
-
+    /// <summary>
+    /// The struct needed by job system to work on meshData
+    /// </summary>
     [BurstCompile]
     struct ProcessMeshDataJob : IJobParallelFor
     {

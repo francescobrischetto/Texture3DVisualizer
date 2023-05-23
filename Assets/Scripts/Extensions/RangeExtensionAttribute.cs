@@ -1,6 +1,9 @@
 using System;
 using UnityEngine;
 
+/// <summary>
+/// This class allows to show range with steps onGUI in Unity Editor
+/// </summary>
 [AttributeUsage(AttributeTargets.Field, Inherited = true, AllowMultiple = false)]
 public sealed class RangeExtensionAttribute : PropertyAttribute
 {
