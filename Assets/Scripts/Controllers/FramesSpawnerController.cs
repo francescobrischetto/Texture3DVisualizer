@@ -3,13 +3,14 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.SceneManagement;
 using Debug = UnityEngine.Debug;
 
 public class FramesSpawnerController : MonoBehaviour
 {
     private int index = 0;
-    private float animationSpeed = 0.25f;
+    private float animationSpeed = 1f;
     private List<GameObject> spawnedFrames = new List<GameObject>();
     private bool enableCommands = true;
     private int selectedMethod = 0;
@@ -19,14 +20,52 @@ public class FramesSpawnerController : MonoBehaviour
 
     [field: Header("Voxel Generation Settings")]    
     [SerializeField] GameObject framePrefab;
+    [SerializeField] UnityEvent<int> onIndexChanged;
+
+    public void animationSpeedChanged(int dropdownChoice)
+    {
+        switch (dropdownChoice)
+        {
+            case 0: animationSpeed = 0.25f; break;
+            case 1: animationSpeed = 0.5f;  break;
+            case 2: animationSpeed = 1f;    break;
+            case 3: animationSpeed = 2f;    break;
+        }
+    }
+
+    public void ChangeFrame(bool next)
+    {
+        if (next)
+        {
+            DeActiveFrame(index);
+            index++;
+            index = Mathf.Clamp(index, 0, spawnedFrames.Count - 1);
+            onIndexChanged.Invoke(index);
+            ActivateSelectedFrame(index);
+        }
+        else
+        {
+            DeActiveFrame(index);
+            index--;
+            index = Mathf.Clamp(index, 0, spawnedFrames.Count - 1);
+            onIndexChanged.Invoke(index);
+            ActivateSelectedFrame(index);
+        }
+    }
     
+    public void PlayAnimation()
+    {
+        StartCoroutine(ExecuteAnimation(index, animationSpeed));
+        enableCommands = false;
+    }
 
     // Start is called before the first frame update
     void Awake()
     {
-        selectedMethod = SettingsData.Instance.SelectedMethod;
-        textures.AddRange(SettingsData.Instance.LoadedTextures);
-        threshold = SettingsData.Instance.Threshold;
+        SettingsData menuSettings = FindObjectOfType<SettingsData>();
+        selectedMethod = menuSettings.SelectedMethod;
+        textures.AddRange(menuSettings.LoadedTextures);
+        threshold = menuSettings.Threshold;
         float startTime = Time.time;
         SpawnFrames();
         index = Mathf.Clamp(index, 0, spawnedFrames.Count - 1);
@@ -43,7 +82,9 @@ public class FramesSpawnerController : MonoBehaviour
         for (int localIndex = 0; localIndex < spawnedFrames.Count; localIndex++)
         {  
             ActivateSelectedFrame(localIndex);
-            yield return new WaitForSeconds(1f /animationSpeed / spawnedFrames.Count - (Time.time - initialFrameTime)); 
+            onIndexChanged.Invoke(localIndex);
+            //20 FPS
+            yield return new WaitForSeconds(1f /animationSpeed / 20 - (Time.time - initialFrameTime));
             initialFrameTime = Time.time;
             DeActiveFrame(localIndex);
         }
@@ -53,40 +94,7 @@ public class FramesSpawnerController : MonoBehaviour
         DeActiveFrame(spawnedFrames.Count - 1);
         enableCommands = true;
         ActivateSelectedFrame(initialIndex);
-
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        if (enableCommands)
-        {
-            if (Input.GetKeyDown(KeyCode.X))
-            {
-                StartCoroutine(ExecuteAnimation(index, animationSpeed));
-                enableCommands = false;
-            }
-            if (Input.GetKeyDown(KeyCode.D))
-            {
-                DeActiveFrame(index);
-                index++;
-                index = Mathf.Clamp(index, 0, spawnedFrames.Count - 1);
-                Debug.Log($"Frame: {index + 1}");
-                ActivateSelectedFrame(index);
-            }
-            if (Input.GetKeyDown(KeyCode.A))
-            {
-                DeActiveFrame(index);
-                index--;
-                index = Mathf.Clamp(index, 0, spawnedFrames.Count - 1);
-                Debug.Log($"Frame: {index + 1}");
-                ActivateSelectedFrame(index);
-            }
-            if (Input.GetKeyDown(KeyCode.R))
-            {
-                SceneManager.LoadScene("MenuScene");
-            }
-        }
+        onIndexChanged.Invoke(initialIndex);
 
     }
 
@@ -105,7 +113,7 @@ public class FramesSpawnerController : MonoBehaviour
             spawnedFrame.SetActive(false);
         }
         var dur = sw.ElapsedMilliseconds;
-        Debug.Log($"TOTAL SPAWNING Took {dur / 1000.0:F2}sec");
+        UIController.Instance.InitializeUI(index, spawnedFrames.Count, dur / 1000.0f);
     }
 
     

@@ -9,6 +9,8 @@ public class MenuController : MonoBehaviour
     [SerializeField] GameObject LoadingPanel;
     [SerializeField] GameObject SettingsDataObj;
 
+    private SettingsData currentSettings;
+
     private void Awake()
     {
         SettingsPanel.SetActive(false);
@@ -20,6 +22,7 @@ public class MenuController : MonoBehaviour
             Destroy(previousInstance.transform.gameObject);
         }
         GameObject instantiatedSettingsObject = Instantiate(SettingsDataObj, Vector3.zero, Quaternion.identity);
+        currentSettings = instantiatedSettingsObject.GetComponent<SettingsData>();
         DontDestroyOnLoad(instantiatedSettingsObject);
     }
 
@@ -53,7 +56,7 @@ public class MenuController : MonoBehaviour
 
     public void StartGame()
     {
-        SettingsData.Instance.LoadTextures();
+        currentSettings.LoadTextures();
         ToggleLoading();
         SceneManager.LoadScene("MainScene");
 
@@ -61,11 +64,11 @@ public class MenuController : MonoBehaviour
 
     public void thresholdUpdated(float num)
     {
-        SettingsData.Instance.thresholdUpdated(num);
+        currentSettings.thresholdUpdated(num);
     }
 
     public void methodSelectedChanged(int num)
     {
-        SettingsData.Instance.methodSelectedChanged(num);
+        currentSettings.methodSelectedChanged(num);
     }
 }

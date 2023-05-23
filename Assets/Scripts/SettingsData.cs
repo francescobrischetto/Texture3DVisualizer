@@ -14,19 +14,8 @@ public class SettingsData : MonoBehaviour
     public int SelectedMethod { get; private set; } = 0;
     public List<Texture3D> LoadedTextures { get; private set; } = new List<Texture3D>();
      
-    //Singleton Instance
-    public static SettingsData Instance { get; private set; }
     private void Awake()
     {
-        //Singleton Setup
-        if (Instance != null && Instance != this)
-        {
-            Destroy(this);
-        }
-        else
-        {
-            Instance = this;
-        }
         #if UNITY_EDITOR
             absolutePath = Application.dataPath;
         #else
